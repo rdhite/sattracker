@@ -1,6 +1,7 @@
 import os
 import datetime
 import requests
+import numpy as np
 from skyfield.api import load, EarthSatellite, Topos
 
 from config import settings
@@ -69,14 +70,16 @@ def get_satellites() -> list[EarthSatellite]:
         return []
 
 
-def calculate_passes(lat: float, lon: float, alt_m: float = 0) -> list[dict]:
+def calculate_passes(lat: float, lon: float, alt_m: float = 0, horizon_profile: np.ndarray | None = None) -> list[dict]:
     """
     Calculates all satellite passes over a given ground station for the next 24 hours.
+    Optionally filters passes against a terrain horizon profile.
 
     Args:
         lat: Latitude of the ground station.
         lon: Longitude of the ground station.
         alt_m: Altitude of the ground station in meters.
+        horizon_profile: A NumPy array of shape (360, 2) representing the horizon.
 
     Returns:
         A list of dictionaries, where each dictionary represents a single satellite pass.
@@ -97,36 +100,84 @@ def calculate_passes(lat: float, lon: float, alt_m: float = 0) -> list[dict]:
         try:
             times, events = sat.find_events(ground_station, t0, t1, altitude_degrees=10.0)
             
-            # Each pass is a sequence of 3 events: rise, culminate, set
             if len(events) > 2:
-                # Group events by pass
                 for i in range(0, len(events) - 2, 3):
-                    if events[i] == 0 and events[i+1] == 1 and events[i+2] == 2: # Rise, Culmination, Set
-                        aos_time = times[i]
-                        tca_time = times[i+1]
-                        los_time = times[i+2]
+                    if events[i] == 0 and events[i+1] == 1 and events[i+2] == 2:
+                        aos_time, tca_time, los_time = times[i], times[i+1], times[i+2]
 
-                        # Calculate max elevation at TCA
-                        difference = sat - ground_station
-                        topocentric = difference.at(tca_time)
-                        alt, az, distance = topocentric.altaz()
+                        # If no horizon profile, use the original pass data
+                        if horizon_profile is None:
+                            difference = sat - ground_station
+                            topocentric = difference.at(tca_time)
+                            alt, az, distance = topocentric.altaz()
+                            max_el = alt.degrees
+                        
+                        # If horizon profile is provided, filter the pass
+                        else:
+                            # 1. Sample the pass at a regular interval
+                            sample_times = ts.linspace(aos_time, los_time, 100)
+                            difference = sat - ground_station
+                            topocentric = difference.at(sample_times)
+                            alt, az, distance = topocentric.altaz()
+                            
+                            # 2. Get terrain horizon for each sample point's azimuth
+                            terrain_elevations = horizon_profile[az.degrees.astype(int), 1]
+                            
+                            # 3. Determine visibility at each sample point
+                            is_visible = alt.degrees > terrain_elevations
+                            
+                            # 4. Find the longest continuous visible segment
+                            if not np.any(is_visible):
+                                continue # Pass is fully obstructed, skip it
+
+                            # Find indices where visibility changes
+                            vis_changes = np.diff(is_visible.astype(int))
+                            rise_indices = np.where(vis_changes == 1)[0] + 1
+                            set_indices = np.where(vis_changes == -1)[0] + 1
+
+                            # Create pairs of rise/set events
+                            if is_visible[0]:
+                                rise_indices = np.insert(rise_indices, 0, 0)
+                            if is_visible[-1]:
+                                set_indices = np.append(set_indices, len(is_visible) - 1)
+
+                            if not len(rise_indices) or not len(set_indices):
+                                continue
+
+                            # Find the longest segment
+                            longest_duration = 0
+                            best_segment = None
+                            for r_idx, s_idx in zip(rise_indices, set_indices):
+                                duration = sample_times[s_idx] - sample_times[r_idx]
+                                if duration > longest_duration:
+                                    longest_duration = duration
+                                    best_segment = (r_idx, s_idx)
+                            
+                            if best_segment is None:
+                                continue
+
+                            # 5. Update pass with the new, shorter AOS/LOS times
+                            aos_time = sample_times[best_segment[0]]
+                            los_time = sample_times[best_segment[1]]
+                            
+                            # Find new TCA and max elevation for the visible segment
+                            visible_times = ts.linspace(aos_time, los_time, 50)
+                            visible_topo = (sat - ground_station).at(visible_times)
+                            visible_alt, _, _ = visible_topo.altaz()
+                            max_el = np.max(visible_alt.degrees)
+                            tca_time = visible_times[np.argmax(visible_alt.degrees)]
 
                         all_passes.append({
                             "name": sat.name,
                             "aos_time": aos_time,
                             "tca_time": tca_time,
                             "los_time": los_time,
-                            "max_elevation_deg": alt.degrees
+                            "max_elevation_deg": max_el,
                         })
-
-        except Exception as e:
-            # Some satellites might not have valid TLE data or other issues
-            # print(f"Could not calculate pass for {sat.name}: {e}")
+        except Exception:
             pass
 
-    # Sort passes by acquisition time
     all_passes.sort(key=lambda x: x['aos_time'])
-
     return all_passes
 
 if __name__ == '__main__':
