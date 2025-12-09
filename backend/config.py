@@ -8,11 +8,11 @@ class Settings(BaseSettings):
     Values can be loaded from environment variables.
     """
     tle_url: str = Field(
-        "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
+        "https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle",
         description="URL for the TLE data source."
     )
     cache_dir: str = Field("cache", description="Directory to store cached files.")
-    tle_cache_file: str = Field("starlink.tle", description="Filename for the TLE cache.")
+    tle_cache_file: str = Field("military.tle", description="Filename for the TLE cache.")
     cache_expiration_hours: int = Field(24, description="Cache validity duration in hours.")
     dem_data_dir: str = Field("dem_data", description="Directory containing DEM data files.")
 

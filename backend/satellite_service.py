@@ -2,6 +2,7 @@ import os
 import datetime
 import requests
 import numpy as np
+from tqdm import tqdm
 from skyfield.api import load, EarthSatellite, Topos
 
 from config import settings
@@ -96,7 +97,7 @@ def calculate_passes(lat: float, lon: float, alt_m: float = 0, horizon_profile: 
 
     all_passes = []
 
-    for sat in satellites:
+    for sat in tqdm(satellites):
         try:
             times, events = sat.find_events(ground_station, t0, t1, altitude_degrees=10.0)
             

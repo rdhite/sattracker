@@ -5,7 +5,8 @@ import datetime
 
 # Local imports
 from satellite_service import calculate_passes
-from dem_service import find_dem_tile_path, calculate_horizon
+from simple_dem_service import calculate_horizon_from_directory
+import numpy as np # Needed for np.all in main.py
 
 app = FastAPI()
 
@@ -43,18 +44,16 @@ def predict(request: PredictionRequest) -> List[SatellitePass]:
     horizon_profile = None
     if request.enable_terrain_analysis:
         print("Terrain analysis enabled. Searching for DEM tile.")
-        dem_path = find_dem_tile_path(lat=request.lat, lon=request.lon)
-        
-        if dem_path:
-            print(f"Found DEM tile: {dem_path}. Calculating horizon profile.")
-            horizon_profile = calculate_horizon(
-                dem_path=dem_path,
-                lat=request.lat,
-                lon=request.lon,
-                alt_m=request.alt_m
-            )
+        # The simple_dem_service now handles finding the appropriate DEM from the directory
+        horizon_profile = calculate_horizon_from_directory(
+            lat=request.lat,
+            lon=request.lon,
+            alt_m=request.alt_m
+        )
+        if np.all(horizon_profile == 0): # Check if the returned horizon is flat
+            print("No suitable DEM file found covering the observer's location. Proceeding without terrain analysis.")
         else:
-            print("No local DEM tile found for the given coordinates. Proceeding without terrain analysis.")
+            print("Horizon profile calculated from available DEM data.")
 
     passes_raw = calculate_passes(
         lat=request.lat,
@@ -62,6 +61,8 @@ def predict(request: PredictionRequest) -> List[SatellitePass]:
         alt_m=request.alt_m,
         horizon_profile=horizon_profile
     )
+
+    print(f"found {len(passes_raw)} passes")
 
     # Convert skyfield Time objects to python datetimes for Pydantic model
     response_passes = [
