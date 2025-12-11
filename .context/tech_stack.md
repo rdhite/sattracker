@@ -1,6 +1,6 @@
 # Technology Stack
 
-## Backend (Python 3.10+)
+## Backend (Python 3.13+)
 - **Tooling:** uv for Python project, environment, and dependency management
 - **Framework:** FastAPI
 - **Orbit Propagation:** Skyfield (Do not use sgp4 directly unless optimized)

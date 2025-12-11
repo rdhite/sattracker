@@ -25,9 +25,16 @@ class PredictionRequest(BaseModel):
 class SatellitePass(BaseModel):
     name: str
     aos_time: datetime.datetime
+    aos_azimuth_deg: float
+    aos_elevation_deg: float
     tca_time: datetime.datetime
+    tca_azimuth_deg: float
+    tca_elevation_deg: float
     los_time: datetime.datetime
+    los_azimuth_deg: float
+    los_elevation_deg: float
     max_elevation_deg: float
+    max_elevation_azimuth_deg: float
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -69,9 +76,16 @@ def predict(request: PredictionRequest) -> List[SatellitePass]:
         SatellitePass(
             name=p["name"],
             aos_time=p["aos_time"].utc_datetime(),
+            aos_azimuth_deg=p["aos_azimuth_deg"],
+            aos_elevation_deg=p["aos_elevation_deg"],
             tca_time=p["tca_time"].utc_datetime(),
+            tca_azimuth_deg=p["tca_azimuth_deg"],
+            tca_elevation_deg=p["tca_elevation_deg"],
             los_time=p["los_time"].utc_datetime(),
+            los_azimuth_deg=p["los_azimuth_deg"],
+            los_elevation_deg=p["los_elevation_deg"],
             max_elevation_deg=p["max_elevation_deg"],
+            max_elevation_azimuth_deg=p["max_elevation_azimuth_deg"],
         )
         for p in passes_raw
     ]

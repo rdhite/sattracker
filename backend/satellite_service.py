@@ -112,20 +112,36 @@ def calculate_passes(lat: float, lon: float, alt_m: float = 0, horizon_profile: 
                             topocentric = difference.at(tca_time)
                             alt, az, distance = topocentric.altaz()
                             max_el = alt.degrees
+                            tca_az = az.degrees
+
+                            # Calculate AOS Azimuth and Elevation
+                            topocentric_aos = difference.at(aos_time)
+                            aos_alt, aos_az, _ = topocentric_aos.altaz()
+                            aos_elevation_deg = aos_alt.degrees
+
+                            # Calculate LOS Azimuth and Elevation
+                            topocentric_los = difference.at(los_time)
+                            los_alt, los_az, _ = topocentric_los.altaz()
+                            los_elevation_deg = los_alt.degrees
+                            
+                            # Max elevation azimuth is the same as TCA azimuth in this case
+                            max_el_az = tca_az
+                            # TCA elevation is already 'alt.degrees' from the 'topocentric' object at tca_time
+                            tca_elevation_deg = alt.degrees
                         
                         # If horizon profile is provided, filter the pass
                         else:
                             # 1. Sample the pass at a regular interval
                             sample_times = ts.linspace(aos_time, los_time, 100)
                             difference = sat - ground_station
-                            topocentric = difference.at(sample_times)
-                            alt, az, distance = topocentric.altaz()
+                            topocentric_samples = difference.at(sample_times)
+                            alt_samples, az_samples, distance_samples = topocentric_samples.altaz()
                             
                             # 2. Get terrain horizon for each sample point's azimuth
-                            terrain_elevations = horizon_profile[az.degrees.astype(int), 1]
+                            terrain_elevations = horizon_profile[az_samples.degrees.astype(int), 1]
                             
                             # 3. Determine visibility at each sample point
-                            is_visible = alt.degrees > terrain_elevations
+                            is_visible = alt_samples.degrees > terrain_elevations
                             
                             # 4. Find the longest continuous visible segment
                             if not np.any(is_visible):
@@ -161,24 +177,57 @@ def calculate_passes(lat: float, lon: float, alt_m: float = 0, horizon_profile: 
                             aos_time = sample_times[best_segment[0]]
                             los_time = sample_times[best_segment[1]]
                             
+                            # Recalculate AOS and LOS azimuths and elevations for the new times
+                            topocentric_aos_new = (sat - ground_station).at(aos_time)
+                            aos_alt, aos_az, _ = topocentric_aos_new.altaz()
+                            aos_elevation_deg = aos_alt.degrees
+
+                            topocentric_los_new = (sat - ground_station).at(los_time)
+                            los_alt, los_az, _ = topocentric_los_new.altaz()
+                            los_elevation_deg = los_alt.degrees
+
                             # Find new TCA and max elevation for the visible segment
                             visible_times = ts.linspace(aos_time, los_time, 50)
                             visible_topo = (sat - ground_station).at(visible_times)
-                            visible_alt, _, _ = visible_topo.altaz()
+                            visible_alt, visible_az, _ = visible_topo.altaz() # Get azimuths too
                             max_el = np.max(visible_alt.degrees)
-                            tca_time = visible_times[np.argmax(visible_alt.degrees)]
+                            max_el_idx = np.argmax(visible_alt.degrees)
+                            tca_time = visible_times[max_el_idx]
+                            tca_az = visible_az.degrees[max_el_idx]
+                            tca_elevation_deg = max_el # TCA elevation is the max elevation
+                            max_el_az = tca_az # Max elevation azimuth is the same as TCA azimuth
 
                         all_passes.append({
                             "name": sat.name,
                             "aos_time": aos_time,
+                            "aos_azimuth_deg": aos_az.degrees,
+                            "aos_elevation_deg": aos_elevation_deg,
                             "tca_time": tca_time,
+                            "tca_azimuth_deg": tca_az,
+                            "tca_elevation_deg": tca_elevation_deg,
                             "los_time": los_time,
+                            "los_azimuth_deg": los_az.degrees,
+                            "los_elevation_deg": los_elevation_deg,
                             "max_elevation_deg": max_el,
+                            "max_elevation_azimuth_deg": max_el_az,
                         })
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error processing pass for satellite {sat.name}: {e}")
 
     all_passes.sort(key=lambda x: x['aos_time'])
+
+    if all_passes:
+        first_pass_aos_time_dt = all_passes[0]['aos_time'].utc_datetime() # Convert Skyfield Time to datetime
+        current_time_dt = ts.now().utc_datetime() # Convert Skyfield Time to datetime
+
+        time_until_next_link = first_pass_aos_time_dt - current_time_dt # This will be a datetime.timedelta
+        
+        total_seconds = time_until_next_link.total_seconds()
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        print(f"Time until next link: {int(hours)}h {int(minutes)}m {int(seconds)}s")
+
     return all_passes
 
 if __name__ == '__main__':
