@@ -172,5 +172,20 @@ def calculate_horizon_from_directory(lat: float, lon: float, alt_m: float = 0, s
             except Exception as e:
                 print(f"Error processing DEM file {filename}: {e}")
 
-    print("No suitable DEM file found covering the observer's location. Returning flat horizon.")
     return np.zeros((360, 2))
+
+class HorizonService:
+    """Manages horizon profile calculation and caching."""
+    def __init__(self):
+        self._cache: dict[tuple, np.ndarray] = {}
+
+    def get_horizon(self, lat: float, lon: float, alt_m: float = 0, search_radius_km: float = 10.0) -> np.ndarray:
+        # Cache key rounded to ~11m precision for lat/lon
+        key = (round(lat, 4), round(lon, 4), round(alt_m, 1), search_radius_km)
+        
+        if key in self._cache:
+            return self._cache[key]
+        
+        horizon = calculate_horizon_from_directory(lat, lon, alt_m, search_radius_km)
+        self._cache[key] = horizon
+        return horizon

@@ -1,0 +1,16 @@
+{
+    "mcpServers": {
+        "context7": {
+            "type": "stdio",
+            "command": "docker",
+            "args": [
+                "run",
+                "-i",
+                "--rm",
+                "-e",
+                "MCP_TRANSPORT=stdio",
+                "mcp/context7"
+            ]
+        }
+    }
+}
