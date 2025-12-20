@@ -1,0 +1,10 @@
+[package]
+name = "satellite_tracker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+chrono = "0.4.42"
+clap = { version = "4.5.53", features = ["derive"] }
+sgp4 = "2.3.0"
