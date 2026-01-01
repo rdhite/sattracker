@@ -1,7 +1,7 @@
 import pytest
 import datetime
 from skyfield.api import load, EarthSatellite, Topos
-from satellite_service import TLEService, SatelliteService
+from backend._deprecated_satellite_service import TLEService, SatelliteService
 import numpy as np
 
 # ISS TLE

@@ -5,7 +5,7 @@ import datetime
 from skyfield.api import load, Topos
 
 # Local imports
-from satellite_service import TLEService, SatelliteService
+from backend._deprecated_satellite_service import TLEService, SatelliteService
 from simple_dem_service import HorizonService
 import numpy as np # Needed for np.all in main.py
 

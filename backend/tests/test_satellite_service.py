@@ -5,7 +5,7 @@ from skyfield.api import EarthSatellite, load
 # Since we are running tests from the 'backend' directory,
 # we should be able to import the modules directly.
 # If not, we may need to adjust the python path.
-from satellite_service import calculate_passes
+from backend._deprecated_satellite_service import calculate_passes
 
 # A real TLE for a known satellite (ISS)
 TLE_LINE_1 = '1 25544U 98067A   25343.58287413  .00004913  00000+0  90184-4 0  9993'
